@@ -28,25 +28,31 @@ competition Competition;
 
 controller Controller1 = controller(primary);
 
-// TODO: fill in drivetrain motors w nobel code
-
+motor LeftFront = motor(PORT1, ratio6_1, false);
+motor LeftMid = motor(PORT2, ratio6_1, false);
+motor LeftBack = motor(PORT3, ratio6_1, false);
+motor RightFront = motor(PORT4, ratio6_1, false);
+motor RightMid = motor(PORT5, ratio6_1, false);
+motor RightBack = motor(PORT6, ratio6_1, false);
 
 digital_out Clamp = digital_out(Brain.ThreeWirePort.A);
 motor IntakeRoller = motor(PORT7, ratio18_1, false);
 motor IntakeChain = motor(PORT8, ratio6_1, false);
 motor LadyBrown = motor(PORT9, ratio18_1, false);
+encoder LadyBrownEncoder = encoder(Brain.ThreeWirePort.B);
 
 bool clampActivated = false;
 int intakeIdx = 0;
 int ladyBrownIdx = 0;
-int ladyBrownAngles[3] = {0, 180, 720};
+int ladyBrownAngles[3] = {0, 180, 720}; // Need calibration
+double ladyBrownTolerance = 0.5;
 
 
 void pre_auton(void) {
   LadyBrown.setVelocity(100.0, percent);
   IntakeRoller.setVelocity(100.0, percent);
   IntakeChain.setVelocity(100.0, percent);
-  LadyBrown.setPosition(0, degrees);
+  LadyBrownEncoder.resetRotation();
 }
 
 void autonomous(void) {
@@ -55,19 +61,29 @@ void autonomous(void) {
   // Right + / Left -
 }
 
+void rotateLadyBrown() {
+  if (fabs(LadyBrownEncoder.rotation(degrees) - ladyBrownAngles[ladyBrownIdx]) < ladyBrownTolerance) {
+    LadyBrown.stop();
+  } else if (LadyBrownEncoder.rotation(degrees) < ladyBrownAngles[ladyBrownIdx]) {
+    LadyBrown.spin(forward);
+  } else if (LadyBrownEncoder.rotation(degrees) > ladyBrownAngles[ladyBrownIdx]) {
+    LadyBrown.spin(reverse);
+  }
+}
+
 void unarmLadyBrown() {
-  LadyBrown.spinToPosition(ladyBrownAngles[0], degrees, false);
+  ladyBrownIdx = 0;
   LadyBrown.setStopping(brake);
 }
 
 void armLadyBrown() {
   // Places lady brown in arm position
   LadyBrown.setStopping(hold);
-  LadyBrown.spinToPosition(ladyBrownAngles[1], degrees, false);
+  ladyBrownIdx = 1;
 }
 
 void scoreLadyBrown() {
-  LadyBrown.spinToPosition(ladyBrownAngles[2], degrees, false);
+  ladyBrownIdx = 1;
   setIntake(0);
 }
 
@@ -88,7 +104,7 @@ void setIntake(int value, bool toggle = false) {
     IntakeRoller.stop();
   } else if(value == -1) {
     IntakeRoller.spin(reverse);
-    IntakeRoller.spin(reverse);
+    IntakeChain.spin(reverse);
   }
   intakeIdx = value;
 }
@@ -105,7 +121,19 @@ void usercontrol(void) {
     // update your motors, etc.
     // ........................................................................
 
-    // TODO: DRIVETRAIN 
+    // DRIVETRAIN 
+    LeftFront.setVelocity(-Controller1.Axis2.position()-Controller1.Axis4.position(),percent);
+    LeftMid.setVelocity(-Controller1.Axis2.position()-Controller1.Axis4.position(),percent);
+    LeftBack.setVelocity(-Controller1.Axis2.position()-Controller1.Axis4.position(),percent);
+    RightFront.setVelocity(Controller1.Axis2.position()-Controller1.Axis4.position(),percent);
+    RightMid.setVelocity(Controller1.Axis2.position()-Controller1.Axis4.position(),percent);
+    RightBack.setVelocity(Controller1.Axis2.position()-Controller1.Axis4.position(),percent);
+    LeftFront.spin(forward);
+    LeftMid.spin(forward);
+    LeftBack.spin(forward);
+    RightFront.spin(forward);
+    RightMid.spin(forward);
+    RightBack.spin(forward);
 
     // LADY BROWN Macros
     Controller1.ButtonDown.pressed(unarmLadyBrown);
@@ -115,6 +143,9 @@ void usercontrol(void) {
     Controller1.ButtonR1.released([]() {LadyBrown.stop();});
     Controller1.ButtonR2.pressed([]() {LadyBrown.spin(reverse);});
     Controller1.ButtonR2.released([]() {LadyBrown.stop();});
+
+    Brain.Screen.print("LadyBrown Encoder: %f", LadyBrownEncoder.rotation(degrees));    
+    rotateLadyBrown();
 
     // INTAKE
     Controller1.ButtonA.pressed([]() {setIntake(1);});
